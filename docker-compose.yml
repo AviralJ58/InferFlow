@@ -1,0 +1,155 @@
+# ===========================================================================
+# InferFlow — Docker Compose
+# ===========================================================================
+# Orchestrates all services for local development.
+#
+# Services:
+#   - frontend:           React SPA (Nginx in prod, Vite dev server locally)
+#   - chat-service:       FastAPI — conversation management + LLM inference
+#   - ingestion-worker:   Async worker — Redis Streams consumer + DB persistence
+#   - monitoring-service: FastAPI — WebSocket event fanout + metrics
+#   - redis:              Event bus (Redis Streams) + caching
+#   - postgres:           Primary data store
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose logs -f        # Tail all logs
+#   docker compose down           # Stop all services
+# ===========================================================================
+
+services:
+  # -------------------------------------------------------------------------
+  # Infrastructure
+  # -------------------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inferflow-net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-inferflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inferflow_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-inferflow}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inferflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inferflow-net
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Application Services
+  # -------------------------------------------------------------------------
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      chat-service:
+        condition: service_healthy
+    networks:
+      - inferflow-net
+    restart: unless-stopped
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: apps/chat-service/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - inferflow-net
+    restart: unless-stopped
+
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: apps/ingestion-worker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - inferflow-net
+    restart: unless-stopped
+
+  monitoring-service:
+    build:
+      context: .
+      dockerfile: apps/monitoring-service/Dockerfile
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - inferflow-net
+    restart: unless-stopped
+
+# ---------------------------------------------------------------------------
+# Volumes & Networks
+# ---------------------------------------------------------------------------
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  inferflow-net:
+    driver: bridge
