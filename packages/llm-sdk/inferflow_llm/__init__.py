@@ -1,13 +1,28 @@
 """
-InferFlow LLM SDK — Provider abstraction layer.
+InferFlow LLM SDK.
 
-This package will provide a unified interface for interacting with
-multiple LLM providers (OpenAI, Anthropic, local models, etc.).
-
-Future responsibilities:
-- Provider-agnostic completion interface
-- Streaming token support
-- Token counting and cost estimation
-- Retry logic with exponential backoff
-- Response normalization across providers
+A provider abstraction library that normalizes streaming chat contracts.
 """
+
+from inferflow_llm.exceptions import (
+    ProviderAuthenticationError,
+    ProviderConnectionError,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderStreamingError,
+)
+from inferflow_llm.factory import ProviderFactory
+from inferflow_llm.models import ChatCompletionResult, Message, ProviderConfig, StreamChunk
+
+__all__ = [
+    "Message",
+    "StreamChunk",
+    "ProviderConfig",
+    "ChatCompletionResult",
+    "ProviderFactory",
+    "ProviderError",
+    "ProviderConnectionError",
+    "ProviderRateLimitError",
+    "ProviderAuthenticationError",
+    "ProviderStreamingError"
+]

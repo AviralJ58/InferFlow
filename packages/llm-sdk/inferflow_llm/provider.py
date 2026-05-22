@@ -6,7 +6,7 @@ this abstract interface, enabling hot-swappable model routing.
 """
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from pydantic import BaseModel
 

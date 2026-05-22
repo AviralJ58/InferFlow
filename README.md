@@ -82,6 +82,16 @@ The application uses an **in-memory repository abstraction** during this phase t
 3. **Streaming Architecture:** Chat relies on `Server-Sent Events (SSE)` for streaming. The `ChatService` exposes an async generator that yields tokens. This ensures the frontend can progressively render the assistant's response without waiting for the full generation to complete.
 4. **Deferred Persistence:** In this phase, persistence to PostgreSQL is intentionally deferred. Why? Because the hardest part of building LLM apps is nailing the streaming UX and decoupled event flow. Once the SSE stream and the Fire-and-Forget architecture are rock solid, adding the database layer becomes a standard engineering task.
 
+### Provider Abstraction & LLM SDK
+We built a custom `inferflow-llm-sdk` to normalize interactions with LLMs and keep the `chat-service` entirely agnostic of the underlying provider logic.
+
+1. **Normalized Contracts**: The SDK defines abstract `StreamChunk` and `ChatCompletionResult` models. The `chat-service` only interacts with these normalized types.
+2. **Provider Implementations**: 
+   - **Gemini**: Implemented via `GeminiProvider` using the modern `google-genai` SDK.
+   - **OpenAI**: Implemented via `OpenAIProvider` using the official `openai` async Python SDK.
+3. **Dynamic Provider Resolution**: The frontend queries the `/api/v1/models` endpoint for a registry of supported models. When a user sends a message, they specify the model ID. The backend dynamically looks up the provider for that model, initializes it with the correct API key, and streams the response.
+4. **Cancellation Lifecycle**: Streams can be cancelled dynamically via the `/api/v1/chat/cancel/{conversation_id}` endpoint. The `StreamManager` terminates the active `asyncio.Task`, which safely stops the generator and cleans up resources without raising uncaught exceptions. This prevents hanging TCP connections and wasted tokens.
+
 ### Frontend (`apps/frontend/`)
 - React + Vite + TypeScript + Tailwind CSS
 - Minimal chat UI with SSE-ready architecture

@@ -13,34 +13,32 @@ logger = setup_logging("streaming-manager")
 
 class StreamManager:
     """
-    Manages active streaming tasks.
-    
-    Future: Use this to cancel tasks if the client disconnects or requests cancellation.
+    Manages active streaming tasks for cancellation.
     """
     def __init__(self):
-        # Maps message_id -> asyncio.Task
+        # Maps conversation_id -> asyncio.Task
         self._active_tasks: dict[str, asyncio.Task] = {}
 
-    def register(self, message_id: str, task: asyncio.Task) -> None:
+    def register(self, conversation_id: str, task: asyncio.Task) -> None:
         """Register an active streaming task."""
-        self._active_tasks[message_id] = task
-        logger.debug(f"Registered stream task for message {message_id}")
+        self._active_tasks[conversation_id] = task
+        logger.debug(f"Registered stream task for conversation {conversation_id}")
 
         # Auto-remove when done
-        task.add_done_callback(lambda t: self.unregister(message_id))
+        task.add_done_callback(lambda t: self.unregister(conversation_id))
 
-    def unregister(self, message_id: str) -> None:
+    def unregister(self, conversation_id: str) -> None:
         """Remove a task from the registry."""
-        if message_id in self._active_tasks:
-            del self._active_tasks[message_id]
-            logger.debug(f"Unregistered stream task for message {message_id}")
+        if conversation_id in self._active_tasks:
+            del self._active_tasks[conversation_id]
+            logger.debug(f"Unregistered stream task for conversation {conversation_id}")
 
-    def cancel(self, message_id: str) -> bool:
+    def cancel(self, conversation_id: str) -> bool:
         """Cancel an active stream."""
-        task = self._active_tasks.get(message_id)
+        task = self._active_tasks.get(conversation_id)
         if task and not task.done():
             task.cancel()
-            logger.info(f"Cancelled stream task for message {message_id}")
+            logger.info(f"Cancelled stream task for conversation {conversation_id}")
             return True
         return False
 

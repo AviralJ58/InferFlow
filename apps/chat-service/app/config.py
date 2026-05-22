@@ -7,10 +7,21 @@ Extends the shared BaseConfig with chat-service-specific settings.
 from functools import lru_cache
 
 from inferflow_shared.config import BaseConfig
+from pydantic import Field
 
 
 class ChatServiceSettings(BaseConfig):
-    """Chat service specific configuration."""
+    """
+    Service-specific settings.
+    Inherits app_name, environment, log_level, redis_url, database_url.
+    """
+    app_name: str = "inferflow-chat-service"
+
+    # LLM Settings
+    gemini_api_key: str = Field(default="")
+    openai_api_key: str = Field(default="")
+    default_provider: str = Field(default="gemini")
+    default_model: str = Field(default="gemini-2.5-flash")
 
     # Service
     chat_service_host: str = "0.0.0.0"

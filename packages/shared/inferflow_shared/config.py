@@ -40,4 +40,8 @@ class BaseConfig(BaseSettings):
         """Construct Redis connection URL."""
         return f"redis://{self.redis_host}:{self.redis_port}/0"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {
+        "env_file": ("../../.env", ".env"), 
+        "env_file_encoding": "utf-8", 
+        "extra": "ignore"
+    }

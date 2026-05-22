@@ -22,3 +22,12 @@ async def stream_chat(
     """
     generator = service.stream_message(request)
     return EventSourceResponse(generator)
+
+@router.post("/cancel/{conversation_id}")
+async def cancel_stream(
+    conversation_id: str,
+    service: ChatService = Depends(get_chat_service)
+):
+    """Cancel an active stream for a conversation."""
+    cancelled = service.cancel_stream(conversation_id)
+    return {"status": "success", "cancelled": cancelled}

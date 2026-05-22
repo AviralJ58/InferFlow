@@ -20,9 +20,22 @@ export interface StreamEventData {
   is_done: boolean;
 }
 
+export interface LLMModel {
+  id: string;
+  provider: string;
+  name: string;
+}
+
 const API_BASE = '/api/v1';
 
 export const ApiClient = {
+  // --- Models ---
+  async getModels(): Promise<LLMModel[]> {
+    const res = await fetch(`${API_BASE}/models`);
+    if (!res.ok) throw new Error('Failed to fetch models');
+    return res.json();
+  },
+
   // --- Conversations ---
   
   async getConversations(): Promise<Conversation[]> {
@@ -58,7 +71,8 @@ export const ApiClient = {
 
   streamChat(
     conversationId: string, 
-    message: string, 
+    message: string,
+    modelId: string,
     onToken: (data: StreamEventData) => void,
     onDone: (data: StreamEventData) => void,
     onError: (err: any) => void
@@ -74,7 +88,8 @@ export const ApiClient = {
       },
       body: JSON.stringify({
         conversation_id: conversationId,
-        message: message
+        message: message,
+        model: modelId
       }),
       signal: controller.signal
     }).then(async (response) => {
@@ -126,5 +141,12 @@ export const ApiClient = {
 
     // Return a cancel function
     return () => controller.abort();
+  },
+
+  async cancelStream(conversationId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/chat/cancel/${conversationId}`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to cancel stream');
   }
 };

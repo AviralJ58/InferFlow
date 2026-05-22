@@ -1,16 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import MessageBubble from './MessageBubble'
-import { ApiClient, Message } from '../api/client'
+import { ApiClient, Message, LLMModel } from '../api/client'
 
 interface ChatViewProps {
   activeConversationId: string | null;
   onMessageSent: () => void;
+  models: LLMModel[];
+  activeModelId: string;
+  onModelChange: (modelId: string) => void;
 }
 
-function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
+function ChatView({ activeConversationId, onMessageSent, models, activeModelId, onModelChange }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [streamError, setStreamError] = useState<string | null>(null)
   const [cancelStream, setCancelStream] = useState<(() => void) | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -52,6 +56,7 @@ function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
     const userMessageContent = input.trim()
     setInput('')
     setIsLoading(true)
+    setStreamError(null)
 
     // Optimistically add user message
     const tempUserMsg: Message = {
@@ -75,7 +80,16 @@ function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
     const cancel = ApiClient.streamChat(
       activeConversationId,
       userMessageContent,
+      activeModelId,
       (data) => {
+        // Check for error event
+        if ((data as any).error) {
+          setStreamError((data as any).error)
+          setIsLoading(false)
+          setCancelStream(null)
+          return
+        }
+        
         // Handle token event
         setMessages(prev => {
           const newMsgs = [...prev]
@@ -101,6 +115,7 @@ function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
       },
       (err) => {
         console.error("Stream error:", err)
+        setStreamError(err instanceof Error ? err.message : String(err))
         setIsLoading(false)
         setCancelStream(null)
       }
@@ -109,11 +124,20 @@ function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
     setCancelStream(() => cancel)
   }
 
-  const handleCancel = () => {
-    if (cancelStream) {
+  const handleCancel = async () => {
+    if (cancelStream && activeConversationId) {
+      // 1. Abort local fetch connection
       cancelStream()
       setCancelStream(null)
       setIsLoading(false)
+      
+      // 2. Call backend to cancel the async task
+      try {
+        await ApiClient.cancelStream(activeConversationId)
+      } catch (e) {
+        console.error("Failed to cancel stream on backend", e)
+      }
+      
       onMessageSent()
     }
   }
@@ -143,7 +167,20 @@ function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-medium text-surface-100">Conversation</h2>
-            <p className="text-xs text-surface-700 mt-0.5">Model: GPT-4 (placeholder)</p>
+            <div className="mt-1">
+              <select 
+                value={activeModelId} 
+                onChange={e => onModelChange(e.target.value)}
+                className="bg-surface-800 border border-surface-700 text-surface-200 text-xs rounded-md px-2 py-1 outline-none hover:border-primary-500/50 transition-colors"
+                disabled={isLoading}
+              >
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.provider})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -184,6 +221,17 @@ function ChatView({ activeConversationId, onMessageSent }: ChatViewProps) {
       {/* Input */}
       <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06]">
         <div className="max-w-3xl mx-auto">
+          {streamError && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-start gap-2">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <p className="font-medium">Error streaming response</p>
+                <p className="text-red-400/80 mt-0.5">{streamError}</p>
+              </div>
+            </div>
+          )}
           {isLoading && (
             <div className="flex justify-center mb-3">
               <button 

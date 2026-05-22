@@ -70,8 +70,9 @@ app.add_middleware(
 
 # -- Routers ------------------------------------------------------------------
 
-from app.api import chat, conversations, health
+from app.api import chat, conversations, health, models
 
 app.include_router(health.router)
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(models.router, prefix="/api/v1")
