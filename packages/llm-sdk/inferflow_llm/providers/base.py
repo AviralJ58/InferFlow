@@ -21,7 +21,8 @@ class BaseLLMProvider(ABC):
     async def stream_chat(
         self,
         messages: list[Message],
-        model: str | None = None
+        model: str | None = None,
+        **kwargs
     ) -> AsyncGenerator[StreamChunk, None]:
         """
         Stream a chat completion response progressively.

@@ -24,7 +24,8 @@ class OpenAIProvider(BaseLLMProvider):
     async def stream_chat(
         self, 
         messages: List[Message], 
-        model: str | None = None
+        model: str | None = None,
+        **kwargs
     ) -> AsyncGenerator[StreamChunk, None]:
         
         target_model = model or self.config.default_model
@@ -37,6 +38,7 @@ class OpenAIProvider(BaseLLMProvider):
                 model=target_model,
                 messages=openai_messages,
                 stream=True,
+                stream_options={"include_usage": True},
             )
             
             async for chunk in stream:
@@ -52,10 +54,19 @@ class OpenAIProvider(BaseLLMProvider):
                         )
                     
                     if finish_reason is not None:
+                        # Token usage arrives on a separate final chunk with usage set
+                        usage_data = None
+                        if chunk.usage:
+                            usage_data = {
+                                "prompt_tokens": chunk.usage.prompt_tokens,
+                                "completion_tokens": chunk.usage.completion_tokens,
+                                "total_tokens": chunk.usage.total_tokens,
+                            }
                         yield StreamChunk(
                             content="",
                             is_done=True,
-                            finish_reason=finish_reason
+                            finish_reason=finish_reason,
+                            token_usage=usage_data
                         )
 
         except APIConnectionError as e:

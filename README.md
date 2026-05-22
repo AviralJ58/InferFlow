@@ -79,8 +79,15 @@ The application uses an **in-memory repository abstraction** during this phase t
 
 1. **Repository Abstraction:** `ConversationRepository` abstracts data access. The `InMemoryConversationRepository` provides immediate state persistence, making it trivial to swap in a `PostgresConversationRepository` later without touching `ChatService` or the API layer.
 2. **Conversation Management:** Conversations and their associated messages are managed through REST APIs (`POST /api/v1/conversations`, `GET /api/v1/conversations`, etc.).
-3. **Streaming Architecture:** Chat relies on `Server-Sent Events (SSE)` for streaming. The `ChatService` exposes an async generator that yields tokens. This ensures the frontend can progressively render the assistant's response without waiting for the full generation to complete.
 4. **Deferred Persistence:** In this phase, persistence to PostgreSQL is intentionally deferred. Why? Because the hardest part of building LLM apps is nailing the streaming UX and decoupled event flow. Once the SSE stream and the Fire-and-Forget architecture are rock solid, adding the database layer becomes a standard engineering task.
+
+### Telemetry SDK & Event-Driven Pipeline
+The architecture leverages a decoupled observability pipeline. The `ChatService` wraps the provider via the `TelemetryWrapper`.
+
+1. **Why wrapper-level telemetry?**: We separate generation from observability. The Gemini/OpenAI SDKs focus purely on streaming tokens. The `TelemetryWrapper` intercepts the stream to calculate `ttft_ms` (Time To First Token), generate `request_id`s, and manage the stream lifecycle.
+2. **Fire-and-Forget Ingestion**: Telemetry is emitted to a Redis Stream (`llm.inference.events`) asynchronously. The `TelemetryProducer` uses a robust `try-except` structure: if Redis goes down, events are dropped, but **inference streaming to the user never breaks**.
+3. **Normalized Event Contracts**: `packages/shared` defines standard event shapes like `InferenceStartedEvent`, `InferenceCompletedEvent`, etc., guaranteeing a uniform observability schema regardless of the underlying LLM provider.
+4. **Replayability & Fanout**: By writing to Redis Streams before persisting to a database, we allow multiple consumers (analytics, ingestion workers, realtime monitoring) to consume these events at their own pace.
 
 ### Provider Abstraction & LLM SDK
 We built a custom `inferflow-llm-sdk` to normalize interactions with LLMs and keep the `chat-service` entirely agnostic of the underlying provider logic.

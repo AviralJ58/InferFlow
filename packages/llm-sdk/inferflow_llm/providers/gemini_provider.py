@@ -26,7 +26,8 @@ class GeminiProvider(BaseLLMProvider):
     async def stream_chat(
         self,
         messages: list[Message],
-        model: str | None = None
+        model: str | None = None,
+        **kwargs
     ) -> AsyncGenerator[StreamChunk, None]:
 
         target_model = model or self.config.default_model
@@ -53,6 +54,7 @@ class GeminiProvider(BaseLLMProvider):
             # Stream with asyncio.timeout
             # (Note: self.config.timeout_ms applies to total stream life, but often we want per-chunk timeout.
             # We'll use total timeout for simplicity, or omit if long running)
+            last_usage = None
             async for raw_chunk in _generate():
                 content = raw_chunk.text
                 if content:
@@ -60,14 +62,21 @@ class GeminiProvider(BaseLLMProvider):
                         content=content,
                         is_done=False
                     )
+                # Gemini attaches usage_metadata on some/last chunks
+                if hasattr(raw_chunk, 'usage_metadata') and raw_chunk.usage_metadata:
+                    um = raw_chunk.usage_metadata
+                    last_usage = {
+                        "prompt_tokens": getattr(um, 'prompt_token_count', None),
+                        "completion_tokens": getattr(um, 'candidates_token_count', None),
+                        "total_tokens": getattr(um, 'total_token_count', None),
+                    }
 
             # Signal stream completion
-            # Gemini SDK accumulates token usage on the final response object if returned
-            # but in streaming, it might not be strictly available per-chunk without parsing Candidates.
             yield StreamChunk(
                 content="",
                 is_done=True,
-                finish_reason="stop"
+                finish_reason="stop",
+                token_usage=last_usage
             )
 
         except TimeoutError as e:

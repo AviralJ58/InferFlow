@@ -3,6 +3,13 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
+  metadata?: {
+    request_id: string;
+    ttft_ms: number;
+    total_latency_ms: number;
+    provider: string;
+    model: string;
+  };
 }
 
 export interface Conversation {
@@ -18,6 +25,13 @@ export interface StreamEventData {
   conversation_id: string;
   content: string;
   is_done: boolean;
+  metadata?: {
+    request_id: string;
+    ttft_ms: number;
+    total_latency_ms: number;
+    provider: string;
+    model: string;
+  };
 }
 
 export interface LLMModel {

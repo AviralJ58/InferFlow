@@ -109,6 +109,21 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
       },
       (data) => {
         // Handle done event
+        if (data.metadata) {
+          setMessages(prev => {
+            const newMsgs = [...prev]
+            const lastIdx = newMsgs.length - 1
+            const target = newMsgs[lastIdx]
+            if (target && target.id === data.message_id) {
+              newMsgs[lastIdx] = {
+                ...target,
+                metadata: data.metadata
+              }
+            }
+            return newMsgs
+          })
+        }
+        
         setIsLoading(false)
         setCancelStream(null)
         onMessageSent() // Refresh conversation list in sidebar

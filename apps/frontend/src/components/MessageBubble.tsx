@@ -45,6 +45,20 @@ function MessageBubble({ message }: MessageBubbleProps) {
         ) : (
           message.content
         )}
+        
+        {/* Metadata Footer */}
+        {message.metadata && !isUser && (
+          <div className="mt-3 pt-2 border-t border-surface-700/50 flex items-center justify-between text-[10px] text-surface-400 font-mono">
+            <div className="flex gap-3">
+              <span>{message.metadata.provider.toUpperCase()} : {message.metadata.model}</span>
+              <span>TTFT: {message.metadata.ttft_ms}ms</span>
+              <span>Total: {(message.metadata.total_latency_ms / 1000).toFixed(2)}s</span>
+            </div>
+            <span className="opacity-50" title={message.metadata.request_id}>
+              {message.metadata.request_id.split('-')[0]}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

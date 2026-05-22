@@ -22,6 +22,11 @@ logger = setup_logging("chat-service")
 settings = get_settings()
 
 from app.api.models import SUPPORTED_MODELS
+from inferflow_shared.telemetry.producer import TelemetryProducer
+from inferflow_llm.telemetry_wrapper import TelemetryWrapper
+
+# Global telemetry producer instance
+telemetry_producer = TelemetryProducer(settings.redis_url)
 
 class ChatService:
     def __init__(self, repository: ConversationRepository):
@@ -46,7 +51,8 @@ class ChatService:
             api_key=api_key,
             default_model=model_id or settings.default_model
         )
-        return ProviderFactory.create(provider_name, config)
+        base_provider = ProviderFactory.create(provider_name, config)
+        return TelemetryWrapper(inner_provider=base_provider, producer=telemetry_producer)
 
     async def stream_message(self, request: StreamChatRequest) -> AsyncGenerator[dict, None]:
         """
@@ -82,7 +88,11 @@ class ChatService:
             # Instantiate provider per request
             provider = self._get_provider(request.model)
             # Stream from provider
-            stream = provider.stream_chat(sdk_messages, request.model)
+            stream = provider.stream_chat(
+                messages=sdk_messages, 
+                model=request.model,
+                conversation_id=conversation.id
+            )
 
             async for chunk in stream:
                 # Append token to the assistant message
@@ -95,6 +105,10 @@ class ChatService:
                     "content": chunk.content,
                     "is_done": chunk.is_done
                 }
+                
+                if chunk.is_done and chunk.metadata:
+                    event_data["metadata"] = chunk.metadata
+                    
                 yield {
                     "event": "token" if not chunk.is_done else "done",
                     "data": json.dumps(event_data)

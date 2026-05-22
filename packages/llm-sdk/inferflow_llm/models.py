@@ -17,6 +17,7 @@ class StreamChunk(BaseModel):
     is_done: bool = False
     finish_reason: str | None = None
     token_usage: dict[str, int] | None = None
+    metadata: dict[str, Any] | None = None
 
 class ChatCompletionResult(BaseModel):
     """Final accumulated result from a chat completion."""
