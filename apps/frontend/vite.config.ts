@@ -19,6 +19,12 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      // Proxy monitoring requests to the monitoring service
+      '/monitoring': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/monitoring/, ''),
+      },
     },
   },
 })

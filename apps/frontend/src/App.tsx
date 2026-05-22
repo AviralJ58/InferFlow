@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import ChatView from './components/ChatView'
 import Sidebar from './components/Sidebar'
+import Dashboard from './components/Dashboard'
 import { ApiClient, Conversation, LLMModel } from './api/client'
 
-function App() {
+function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
@@ -43,13 +45,7 @@ function App() {
   }
 
   const handleCreateConversation = async () => {
-    try {
-      const conv = await ApiClient.createConversation("New Conversation")
-      setConversations([conv, ...conversations])
-      setActiveConversationId(conv.id)
-    } catch (e) {
-      console.error(e)
-    }
+    setActiveConversationId('new')
   }
 
   const handleDeleteConversation = async (id: string) => {
@@ -79,12 +75,29 @@ function App() {
         <ChatView 
           activeConversationId={activeConversationId} 
           onMessageSent={loadConversations}
+          onCreateConversation={async (title) => {
+            const conv = await ApiClient.createConversation(title)
+            setConversations(prev => [conv, ...prev])
+            setActiveConversationId(conv.id)
+            return conv.id
+          }}
           models={models}
           activeModelId={activeModelId}
           onModelChange={setActiveModelId}
         />
       </main>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ChatApp />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

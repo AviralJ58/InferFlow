@@ -5,22 +5,38 @@ import { ApiClient, Message, LLMModel } from '../api/client'
 interface ChatViewProps {
   activeConversationId: string | null;
   onMessageSent: () => void;
+  onCreateConversation?: (title: string) => Promise<string>;
   models: LLMModel[];
   activeModelId: string;
   onModelChange: (modelId: string) => void;
 }
 
-function ChatView({ activeConversationId, onMessageSent, models, activeModelId, onModelChange }: ChatViewProps) {
+function ChatView({ activeConversationId, onMessageSent, onCreateConversation, models, activeModelId, onModelChange }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [inputs, setInputs] = useState<Record<string, string>>({})
+  const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
+
+  const input = activeConversationId ? (inputs[activeConversationId] || '') : ''
+  const setInput = (val: string) => {
+    if (activeConversationId) {
+      setInputs(prev => ({ ...prev, [activeConversationId]: val }))
+    }
+  }
+
+  const isLoading = activeConversationId ? (loadingStates[activeConversationId] || false) : false
+  const setIsLoading = (val: boolean, convId?: string) => {
+    const targetId = convId || activeConversationId
+    if (targetId) {
+      setLoadingStates(prev => ({ ...prev, [targetId]: val }))
+    }
+  }
   const [cancelStream, setCancelStream] = useState<(() => void) | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Load conversation messages when active ID changes
   useEffect(() => {
-    if (activeConversationId) {
+    if (activeConversationId && activeConversationId !== 'new') {
       loadMessages(activeConversationId)
     } else {
       setMessages([])
@@ -54,7 +70,27 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
 
     const userMessageContent = input.trim()
     setInput('')
-    setIsLoading(true)
+    
+    // We will set loading on targetConvId once we know it
+    let targetConvId = activeConversationId
+    if (targetConvId === 'new') {
+      setIsLoading(true, 'new') // Block the UI while creating
+      if (onCreateConversation) {
+        const title = userMessageContent.slice(0, 15) + (userMessageContent.length > 15 ? '...' : '')
+        try {
+          targetConvId = await onCreateConversation(title)
+        } catch (e) {
+          console.error("Failed to create conversation", e)
+          setIsLoading(false, 'new')
+          return
+        }
+      } else {
+        setIsLoading(false, 'new')
+        return
+      }
+    }
+
+    setIsLoading(true, targetConvId)
 
     // Optimistically add user message
     const tempUserMsg: Message = {
@@ -76,13 +112,13 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
     setMessages(prev => [...prev, tempAssistantMsg])
 
     const cancel = ApiClient.streamChat(
-      activeConversationId,
+      targetConvId,
       userMessageContent,
       activeModelId,
       (data) => {
         // Check for error event
         if ((data as any).error) {
-          setIsLoading(false)
+          setIsLoading(false, targetConvId)
           setCancelStream(null)
           return
         }
@@ -121,7 +157,7 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
           })
         }
         
-        setIsLoading(false)
+        setIsLoading(false, targetConvId)
         setCancelStream(null)
         onMessageSent() // Refresh conversation list in sidebar
       },
@@ -144,7 +180,7 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
           return newMsgs
         })
         
-        setIsLoading(false)
+        setIsLoading(false, targetConvId)
         setCancelStream(null)
       }
     )
@@ -157,7 +193,7 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
       // 1. Abort local fetch connection
       cancelStream()
       setCancelStream(null)
-      setIsLoading(false)
+      setIsLoading(false, activeConversationId || undefined)
       
       // 2. Call backend to cancel the async task
       try {

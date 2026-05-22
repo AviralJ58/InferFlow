@@ -17,12 +17,19 @@ class MonitoringSettings(BaseConfig):
     monitoring_service_port: int = 8001
 
     # Redis Streams consumer
-    consumer_group: str = "monitoring-consumers"
+    consumer_group: str = "monitoring-group"
     consumer_name: str = "monitor-1"
-    stream_key: str = "inferflow:inference_events"
+    stream_key: str = "llm.inference.events"
 
-    # Metrics
-    metrics_flush_interval_seconds: int = 30
+    # Polling
+    block_ms: int = 2000  # Block for 2s when no messages
+    batch_size: int = 50  # Read up to 50 messages per poll
+
+    # Rolling window
+    window_seconds: int = 300  # 5-minute rolling window
+
+    # SSE push frequency
+    snapshot_interval_seconds: int = 2  # Push metrics every 2 seconds
 
 
 @lru_cache

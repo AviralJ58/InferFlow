@@ -83,7 +83,16 @@ function Sidebar({ isOpen, onToggle, conversations, activeConversationId, onSele
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-white/[0.06]">
+        <div className="pt-4 border-t border-white/[0.06] space-y-3">
+          <a
+            href="/dashboard"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-white/[0.04] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Monitoring Dashboard
+          </a>
           <div className="flex items-center gap-3 px-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
               <span className="text-white text-xs font-medium">U</span>
