@@ -73,6 +73,15 @@ InferFlow is an async-first, event-driven platform for building production-grade
 | **Redis** | Event bus (Streams), caching, session storage | TCP |
 | **PostgreSQL** | Primary data store — conversations, messages, inference logs | TCP |
 
+### Conversation Lifecycle & Architecture
+
+The application uses an **in-memory repository abstraction** during this phase to decouple the business logic from the database layer. This ensures that the frontend and the core service logic are stable before introducing PostgreSQL.
+
+1. **Repository Abstraction:** `ConversationRepository` abstracts data access. The `InMemoryConversationRepository` provides immediate state persistence, making it trivial to swap in a `PostgresConversationRepository` later without touching `ChatService` or the API layer.
+2. **Conversation Management:** Conversations and their associated messages are managed through REST APIs (`POST /api/v1/conversations`, `GET /api/v1/conversations`, etc.).
+3. **Streaming Architecture:** Chat relies on `Server-Sent Events (SSE)` for streaming. The `ChatService` exposes an async generator that yields tokens. This ensures the frontend can progressively render the assistant's response without waiting for the full generation to complete.
+4. **Deferred Persistence:** In this phase, persistence to PostgreSQL is intentionally deferred. Why? Because the hardest part of building LLM apps is nailing the streaming UX and decoupled event flow. Once the SSE stream and the Fire-and-Forget architecture are rock solid, adding the database layer becomes a standard engineering task.
+
 ### Frontend (`apps/frontend/`)
 - React + Vite + TypeScript + Tailwind CSS
 - Minimal chat UI with SSE-ready architecture

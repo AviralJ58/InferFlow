@@ -1,0 +1,13 @@
+[project]
+name = "inferflow-workspace"
+version = "0.1.0"
+description = "InferFlow Monorepo Workspace"
+requires-python = ">=3.11"
+
+[tool.uv.workspace]
+members = [
+    "apps/chat-service",
+    "apps/ingestion-worker",
+    "apps/monitoring-service",
+    "packages/*"
+]

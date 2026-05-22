@@ -1,9 +1,4 @@
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
-}
+import { Message } from '../api/client'
 
 interface MessageBubbleProps {
   message: Message

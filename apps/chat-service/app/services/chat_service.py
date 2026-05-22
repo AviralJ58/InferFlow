@@ -1,72 +1,79 @@
 """
-Chat service — core business logic layer.
-
-Orchestrates the flow:
-  1. Receive message from router
-  2. Load conversation context (future: from PostgreSQL)
-  3. Call LLM provider (future: via llm-sdk)
-  4. Publish inference event to Redis Streams (fire-and-forget)
-  5. Return response / stream tokens via SSE
-
-Design decisions:
-  - Inference does NOT wait for persistence. The response is streamed
-    back immediately, and a fire-and-forget event is published to Redis
-    Streams for async ingestion by downstream workers.
-  - This keeps the inference path fast and decoupled from storage.
+Chat service — orchestrates inference and streaming.
 """
 
-import uuid
+import asyncio
+import json
+from collections.abc import AsyncGenerator
 
-from app.schemas import ChatRequest, ChatResponse
+from inferflow_shared.logging import setup_logging
+
+from app.domain.models import Message
+from app.repositories.base import ConversationRepository
+from app.schemas.chat import StreamChatRequest
+
+logger = setup_logging("chat-service")
 
 
 class ChatService:
-    """
-    Handles chat message processing and LLM orchestration.
+    def __init__(self, repository: ConversationRepository):
+        self._repository = repository
 
-    Future dependencies (injected via lifespan):
-      - LLM provider client
-      - Redis client (for event publishing)
-      - Database session factory (for conversation context)
-    """
-
-    async def handle_message(self, request: ChatRequest) -> ChatResponse:
+    async def stream_message(self, request: StreamChatRequest) -> AsyncGenerator[dict, None]:
         """
-        Process a chat message and return a response.
-
-        Current: returns a placeholder response.
-        Future: calls LLM, streams tokens, publishes events.
+        Process a user message and stream the assistant's response.
+        
+        Yields dictionaries formatted for sse-starlette.
         """
-        conversation_id = request.conversation_id or str(uuid.uuid4())
+        # 1. Fetch conversation
+        conversation = await self._repository.get_by_id(request.conversation_id)
+        if not conversation:
+            yield {"event": "error", "data": json.dumps({"error": "Conversation not found"})}
+            return
 
-        # TODO: Load conversation history from DB
-        # TODO: Call LLM provider via llm-sdk
-        # TODO: Publish InferenceEvent to Redis Streams
+        # 2. Add user message
+        user_message = Message(role="user", content=request.message)
+        await self._repository.add_message(conversation.id, user_message)
 
-        return ChatResponse(
-            message="This is a placeholder response. LLM integration coming soon.",
-            conversation_id=conversation_id,
-            model="placeholder",
-        )
+        # 3. Prepare assistant message placeholder
+        assistant_message = Message(role="assistant", content="")
+        await self._repository.add_message(conversation.id, assistant_message)
 
-    async def stream_message(self, request: ChatRequest):
-        """
-        Stream LLM tokens as an async generator (for SSE).
+        # 4. Simulate LLM streaming
+        # Future: Call llm_sdk provider here and iterate over its token stream
+        mock_response = f"This is a simulated streaming response to: '{request.message}'. " \
+                        f"In the future, this will be wired to a real LLM via the llm-sdk."
 
-        Future: yield individual tokens from the LLM provider.
-        """
-        # TODO: Implement streaming via llm-sdk
-        yield "Streaming not yet implemented."
+        tokens = mock_response.split(" ")
 
-    async def _publish_inference_event(self, event: dict) -> None:
-        """
-        Publish an inference event to Redis Streams (fire-and-forget).
+        for i, token in enumerate(tokens):
+            await asyncio.sleep(0.05)  # Simulate network latency
 
-        This is called after inference completes. It does NOT block
-        the response to the user. Downstream consumers pick up the
-        event asynchronously.
+            # Append token to the assistant message
+            chunk = token + (" " if i < len(tokens) - 1 else "")
+            assistant_message.content += chunk
 
-        Future: use Redis XADD to publish to the inference stream.
-        """
-        # TODO: Implement Redis Streams publishing
-        pass
+            # Create stream event
+            event_data = {
+                "message_id": assistant_message.id,
+                "conversation_id": conversation.id,
+                "content": chunk,
+                "is_done": False
+            }
+            yield {"event": "token", "data": json.dumps(event_data)}
+
+        # Update the final message in repository (just touches updated_at)
+        await self._repository.update(conversation)
+
+        # 5. Send done event
+        final_event_data = {
+            "message_id": assistant_message.id,
+            "conversation_id": conversation.id,
+            "content": "",
+            "is_done": True
+        }
+        yield {"event": "done", "data": json.dumps(final_event_data)}
+
+        # 6. Future: Publish InferenceEvent to Redis Streams
+        # await self._publish_inference_event(...)
+        logger.info(f"Finished streaming response for conversation {conversation.id}")

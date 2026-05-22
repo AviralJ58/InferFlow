@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     "redis>=5.0",
     "websockets>=13.0",
+    "inferflow-shared",
 ]
 
 [dependency-groups]
@@ -32,3 +33,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.uv.sources]
+inferflow-shared = { workspace = true }
