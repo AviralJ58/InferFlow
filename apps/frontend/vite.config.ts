@@ -16,12 +16,12 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to the chat service during development
       '/api': {
-        target: 'http://localhost:8000',
+        target: `http://${process.env.CHAT_SERVICE_HOST || 'localhost'}:8000`,
         changeOrigin: true,
       },
       // Proxy monitoring requests to the monitoring service
       '/monitoring': {
-        target: 'http://localhost:8001',
+        target: `http://${process.env.MONITORING_SERVICE_HOST || 'localhost'}:8001`,
         changeOrigin: true,
         rewrite: (path: string) => path.replace(/^\/monitoring/, ''),
       },

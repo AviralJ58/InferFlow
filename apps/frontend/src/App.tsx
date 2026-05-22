@@ -13,30 +13,38 @@ function ChatApp() {
   // Model Selection State
   const [models, setModels] = useState<LLMModel[]>([])
   const [activeModelId, setActiveModelId] = useState<string>("gemini-2.5-flash")
-
-  useEffect(() => {
-    loadConversations()
-    loadModels()
-  }, [])
+  
+  // Connection State
+  const [isConnected, setIsConnected] = useState<boolean>(false)
 
   const loadModels = async () => {
     try {
       const fetchedModels = await ApiClient.getModels()
       setModels(fetchedModels)
+      setIsConnected(true)
       if (fetchedModels.length > 0 && !fetchedModels.find(m => m.id === activeModelId)) {
         setActiveModelId(fetchedModels[0].id)
       }
     } catch (e) {
-      console.error(e)
+      console.error("Connection failed", e)
+      setIsConnected(false)
     }
   }
+
+  useEffect(() => {
+    // Initial load
+    loadConversations()
+    loadModels()
+  }, [])
 
   const loadConversations = async () => {
     try {
       const convs = await ApiClient.getConversations()
       setConversations(convs)
+      setIsConnected(true)
     } catch (e) {
       console.error(e)
+      setIsConnected(false)
     }
   }
 
@@ -84,6 +92,8 @@ function ChatApp() {
           models={models}
           activeModelId={activeModelId}
           onModelChange={setActiveModelId}
+          isConnected={isConnected}
+          onConnectionChange={setIsConnected}
         />
       </main>
     </div>

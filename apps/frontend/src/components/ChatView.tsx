@@ -9,9 +9,11 @@ interface ChatViewProps {
   models: LLMModel[];
   activeModelId: string;
   onModelChange: (modelId: string) => void;
+  isConnected: boolean;
+  onConnectionChange: (status: boolean) => void;
 }
 
-function ChatView({ activeConversationId, onMessageSent, onCreateConversation, models, activeModelId, onModelChange }: ChatViewProps) {
+function ChatView({ activeConversationId, onMessageSent, onCreateConversation, models, activeModelId, onModelChange, isConnected, onConnectionChange }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
@@ -47,8 +49,10 @@ function ChatView({ activeConversationId, onMessageSent, onCreateConversation, m
     try {
       const conv = await ApiClient.getConversation(id)
       setMessages(conv.messages)
+      onConnectionChange(true)
     } catch (e) {
       console.error(e)
+      onConnectionChange(false)
     }
   }
 
@@ -79,6 +83,7 @@ function ChatView({ activeConversationId, onMessageSent, onCreateConversation, m
         const title = userMessageContent.slice(0, 15) + (userMessageContent.length > 15 ? '...' : '')
         try {
           targetConvId = await onCreateConversation(title)
+          setIsLoading(false, 'new') // Reset the 'new' state so we can create another one later
         } catch (e) {
           console.error("Failed to create conversation", e)
           setIsLoading(false, 'new')
@@ -164,6 +169,7 @@ function ChatView({ activeConversationId, onMessageSent, onCreateConversation, m
       (err) => {
         const errorMsg = err instanceof Error ? err.message : String(err)
         console.error("Stream error:", err)
+        onConnectionChange(false)
         
         // Attach error to the assistant message bubble
         setMessages(prev => {
@@ -247,9 +253,15 @@ function ChatView({ activeConversationId, onMessageSent, onCreateConversation, m
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-slow" />
-              Connected
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${
+              isConnected 
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                isConnected ? 'bg-emerald-400 animate-pulse-slow' : 'bg-amber-400 animate-pulse'
+              }`} />
+              {isConnected ? 'Connected' : 'Connecting'}
             </span>
           </div>
         </div>
