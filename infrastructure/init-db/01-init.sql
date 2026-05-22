@@ -52,24 +52,38 @@ CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 -- -----------------------------------
 -- Inference Logs
 -- -----------------------------------
--- Normalized inference telemetry, one row per LLM call.
+-- Normalized inference telemetry, one row per LLM inference event.
 -- Separated from messages to keep operational data independent
 -- of user-facing content.
+--
+-- Idempotency: (request_id, event_type) is UNIQUE. The ingestion worker uses
+-- ON CONFLICT (request_id, event_type) DO NOTHING to safely handle Redis
+-- Streams replays without dropping subsequent events for the same request.
 CREATE TABLE IF NOT EXISTS inference_logs (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    message_id      UUID REFERENCES messages(id) ON DELETE SET NULL,
-    model           TEXT NOT NULL,
-    provider        TEXT,
-    prompt_tokens   INTEGER,
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_id        UUID NOT NULL,
+    conversation_id   UUID NOT NULL,
+    event_type        TEXT NOT NULL,
+    provider          TEXT NOT NULL,
+    model             TEXT NOT NULL,
+    status            TEXT,
+    ttft_ms           INTEGER,
+    total_latency_ms  INTEGER,
+    prompt_tokens     INTEGER,
     completion_tokens INTEGER,
-    total_tokens    INTEGER,
-    latency_ms      DOUBLE PRECISION,
-    finish_reason   TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    metadata        JSONB DEFAULT '{}'::jsonb
+    total_tokens      INTEGER,
+    input_preview     TEXT,
+    output_preview    TEXT,
+    error             TEXT,
+    event_timestamp   TIMESTAMPTZ NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metadata          JSONB DEFAULT '{}'::jsonb,
+    UNIQUE(request_id, event_type)
 );
 
+CREATE INDEX IF NOT EXISTS idx_inference_logs_request_id ON inference_logs(request_id);
 CREATE INDEX IF NOT EXISTS idx_inference_logs_conversation_id ON inference_logs(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_inference_logs_event_type ON inference_logs(event_type);
 CREATE INDEX IF NOT EXISTS idx_inference_logs_model ON inference_logs(model);
 CREATE INDEX IF NOT EXISTS idx_inference_logs_created_at ON inference_logs(created_at);
+

@@ -1,15 +1,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.repositories.memory import InMemoryConversationRepository
+from app.api.deps import get_conversation_repository
 from app.schemas.conversation import ConversationSchema, CreateConversationRequest
 from app.services.conversation_service import ConversationService
+from app.repositories.base import ConversationRepository
 
-# Global in-memory repository for now
-# Future: This will be injected via FastAPI dependencies (Depends) mapped to a DB Session
-repo = InMemoryConversationRepository()
-
-def get_conversation_service() -> ConversationService:
+def get_conversation_service(repo: ConversationRepository = Depends(get_conversation_repository)) -> ConversationService:
     return ConversationService(repo)
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])

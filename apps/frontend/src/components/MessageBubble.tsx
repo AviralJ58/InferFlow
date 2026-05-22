@@ -36,27 +36,45 @@ function MessageBubble({ message }: MessageBubbleProps) {
             : 'glass-subtle text-surface-200 rounded-tl-md'
         }`}
       >
-        {message.content === '' && !isUser ? (
+        {message.content === '' && !isUser && !message.error ? (
           <div className="flex gap-1.5 h-5 items-center px-1">
             <span className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }} />
             <span className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }} />
             <span className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
         ) : (
-          message.content
+          <div className="flex flex-col gap-2">
+            {message.content && <div>{message.content}</div>}
+            {message.error && (
+              <div className="text-red-400 text-sm flex items-center gap-2 bg-red-500/10 p-2.5 rounded border border-red-500/20 mt-1">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{message.error}</span>
+              </div>
+            )}
+          </div>
         )}
         
         {/* Metadata Footer */}
-        {message.metadata && !isUser && (
+        {message.metadata && Object.keys(message.metadata).length > 0 && !isUser && (
           <div className="mt-3 pt-2 border-t border-surface-700/50 flex items-center justify-between text-[10px] text-surface-400 font-mono">
             <div className="flex gap-3">
-              <span>{message.metadata.provider.toUpperCase()} : {message.metadata.model}</span>
-              <span>TTFT: {message.metadata.ttft_ms}ms</span>
-              <span>Total: {(message.metadata.total_latency_ms / 1000).toFixed(2)}s</span>
+              {message.metadata.provider && (
+                <span>{message.metadata.provider.toUpperCase()} : {message.metadata.model}</span>
+              )}
+              {message.metadata.ttft_ms && (
+                <span>TTFT: {message.metadata.ttft_ms}ms</span>
+              )}
+              {message.metadata.total_latency_ms && (
+                <span>Total: {(message.metadata.total_latency_ms / 1000).toFixed(2)}s</span>
+              )}
             </div>
-            <span className="opacity-50" title={message.metadata.request_id}>
-              {message.metadata.request_id.split('-')[0]}
-            </span>
+            {message.metadata.request_id && (
+              <span className="opacity-50" title={message.metadata.request_id}>
+                {message.metadata.request_id.split('-')[0]}
+              </span>
+            )}
           </div>
         )}
       </div>

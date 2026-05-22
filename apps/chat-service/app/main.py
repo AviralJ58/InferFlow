@@ -44,10 +44,10 @@ async def lifespan(app: FastAPI):
     # TODO: Initialize Redis connection pool
     # TODO: Initialize database engine
     # TODO: Initialize LLM provider client
+    from app.db.engine import engine
     yield
     logger.info("Chat service shutting down...")
-    # TODO: Close Redis connection pool
-    # TODO: Dispose database engine
+    await engine.dispose()
 
 
 # -- App ----------------------------------------------------------------------

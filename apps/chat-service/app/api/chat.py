@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.conversations import repo  # reusing the same memory repo instance
+from app.api.deps import get_conversation_repository
+from app.repositories.base import ConversationRepository
 from app.schemas.chat import StreamChatRequest
 from app.services.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-def get_chat_service() -> ChatService:
+def get_chat_service(repo: ConversationRepository = Depends(get_conversation_repository)) -> ChatService:
     return ChatService(repo)
 
 @router.post("/stream")

@@ -17,6 +17,8 @@ class BaseInferenceEvent(BaseModel):
     provider: str
     model: str
     timestamp: str = Field(default_factory=utc_now)
+    input_preview: Optional[str] = None
+    output_preview: Optional[str] = None
 
 class InferenceStartedEvent(BaseInferenceEvent):
     """Emitted when a stream request begins."""

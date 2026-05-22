@@ -67,10 +67,12 @@ class ChatService:
         # Add user message
         user_message = Message(role="user", content=request.message)
         await self._repository.add_message(conversation.id, user_message)
+        conversation.messages.append(user_message)
 
         # Prepare assistant message placeholder
         assistant_message = Message(role="assistant", content="")
         await self._repository.add_message(conversation.id, assistant_message)
+        conversation.messages.append(assistant_message)
 
         # Convert app domain Messages to SDK Messages for the provider
         sdk_messages = [
@@ -108,6 +110,7 @@ class ChatService:
                 
                 if chunk.is_done and chunk.metadata:
                     event_data["metadata"] = chunk.metadata
+                    assistant_message.metadata = chunk.metadata
                     
                 yield {
                     "event": "token" if not chunk.is_done else "done",

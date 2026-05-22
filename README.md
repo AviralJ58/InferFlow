@@ -89,6 +89,16 @@ The architecture leverages a decoupled observability pipeline. The `ChatService`
 3. **Normalized Event Contracts**: `packages/shared` defines standard event shapes like `InferenceStartedEvent`, `InferenceCompletedEvent`, etc., guaranteeing a uniform observability schema regardless of the underlying LLM provider.
 4. **Replayability & Fanout**: By writing to Redis Streams before persisting to a database, we allow multiple consumers (analytics, ingestion workers, realtime monitoring) to consume these events at their own pace.
 
+### Ingestion Pipeline (`apps/ingestion-worker/`)
+A standalone async worker that consumes telemetry events from Redis Streams and durably persists them to PostgreSQL.
+
+1. **Redis Consumer Groups**: The worker joins the `ingestion-group` consumer group on `llm.inference.events` using `XREADGROUP`. This enables horizontal scaling — multiple workers can share the workload without duplicating events. Unacknowledged messages are automatically redelivered.
+2. **Pipeline Stages**: Each event flows through: `consume → validate → redact PII → persist → ACK`. Events are only ACK'd after successful DB persistence. Failed writes leave the message unACK'd for automatic redelivery.
+3. **Idempotency**: The `inference_logs` table has a `UNIQUE` constraint on `request_id`. The repository uses `ON CONFLICT (request_id) DO NOTHING`, making the pipeline safe against Redis replays and duplicate delivery.
+4. **PII Redaction**: Before persistence, error payloads are scanned for emails, phone numbers, and credit card patterns using regex-based redaction. This prevents accidental PII leakage from LLM error messages.
+5. **Dead-Letter Stream**: Invalid events (malformed JSON, unknown event types, validation failures) are routed to `llm.inference.invalid` and ACK'd from the main stream. This prevents poison messages from blocking the pipeline.
+6. **Eventual Consistency**: The chat service remains fully functional even if the ingestion worker crashes or PostgreSQL is temporarily unavailable. Telemetry accumulates in Redis Streams and is processed when the worker recovers.
+
 ### Provider Abstraction & LLM SDK
 We built a custom `inferflow-llm-sdk` to normalize interactions with LLMs and keep the `chat-service` entirely agnostic of the underlying provider logic.
 

@@ -3,6 +3,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
+  error?: string;
   metadata?: {
     request_id: string;
     ttft_ms: number;
@@ -130,11 +131,13 @@ export const ApiClient = {
             if (line.startsWith('data: ')) {
               const dataStr = line.slice(6);
               try {
-                const data: StreamEventData = JSON.parse(dataStr);
-                if (data.is_done) {
-                  onDone(data);
+                const data = JSON.parse(dataStr);
+                if (data.error) {
+                  onError(new Error(data.error));
+                } else if (data.is_done) {
+                  onDone(data as StreamEventData);
                 } else {
-                  onToken(data);
+                  onToken(data as StreamEventData);
                 }
               } catch (e) {
                 console.error('Error parsing SSE data', e, dataStr);

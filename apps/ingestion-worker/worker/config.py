@@ -13,9 +13,10 @@ class WorkerSettings(BaseConfig):
     """Ingestion worker specific configuration."""
 
     # Consumer group settings
-    consumer_group: str = "ingestion-workers"
+    consumer_group: str = "ingestion-group"
     consumer_name: str = "worker-1"
-    stream_key: str = "inferflow:inference_events"
+    stream_key: str = "llm.inference.events"
+    invalid_stream_key: str = "llm.inference.invalid"
 
     # Polling
     block_ms: int = 5000  # Block for 5s when no messages

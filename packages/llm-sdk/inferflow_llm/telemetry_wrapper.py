@@ -39,6 +39,11 @@ class TelemetryWrapper(BaseLLMProvider):
 
         start_time = time.perf_counter()
         first_token_time = None
+        
+        # Extract input preview
+        last_user_msg = next((m.content for m in reversed(messages) if m.role == "user"), "")
+        input_preview = last_user_msg[:300] if last_user_msg else None
+        output_chunks = []
 
         # Emit Started Event
         await self.producer.emit(
@@ -46,7 +51,8 @@ class TelemetryWrapper(BaseLLMProvider):
                 request_id=request_id,
                 conversation_id=conversation_id,
                 provider=provider_name,
-                model=target_model
+                model=target_model,
+                input_preview=input_preview
             )
         )
 
@@ -55,6 +61,9 @@ class TelemetryWrapper(BaseLLMProvider):
             async for chunk in stream:
                 if first_token_time is None and chunk.content:
                     first_token_time = time.perf_counter()
+                
+                if chunk.content and sum(len(c) for c in output_chunks) < 300:
+                    output_chunks.append(chunk.content[:300 - sum(len(c) for c in output_chunks)])
                 
                 # Append request_id to metadata if it's the final chunk
                 if chunk.is_done:
@@ -86,6 +95,8 @@ class TelemetryWrapper(BaseLLMProvider):
                             prompt_tokens=usage.get("prompt_tokens"),
                             completion_tokens=usage.get("completion_tokens"),
                             total_tokens=usage.get("total_tokens"),
+                            input_preview=input_preview,
+                            output_preview="".join(output_chunks)
                         )
                     )
                 
@@ -101,7 +112,9 @@ class TelemetryWrapper(BaseLLMProvider):
                     provider=provider_name,
                     model=target_model,
                     ttft_ms=int(ttft * 1000) if ttft else None,
-                    total_latency_ms=int(total_time * 1000)
+                    total_latency_ms=int(total_time * 1000),
+                    input_preview=input_preview,
+                    output_preview="".join(output_chunks)
                 )
             )
             raise
@@ -116,7 +129,9 @@ class TelemetryWrapper(BaseLLMProvider):
                     model=target_model,
                     ttft_ms=int(ttft * 1000) if ttft else None,
                     total_latency_ms=int(total_time * 1000),
-                    error=str(e)
+                    error=str(e),
+                    input_preview=input_preview,
+                    output_preview="".join(output_chunks)
                 )
             )
             raise

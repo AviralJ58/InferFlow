@@ -14,7 +14,6 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [streamError, setStreamError] = useState<string | null>(null)
   const [cancelStream, setCancelStream] = useState<(() => void) | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -56,7 +55,6 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
     const userMessageContent = input.trim()
     setInput('')
     setIsLoading(true)
-    setStreamError(null)
 
     // Optimistically add user message
     const tempUserMsg: Message = {
@@ -84,7 +82,6 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
       (data) => {
         // Check for error event
         if ((data as any).error) {
-          setStreamError((data as any).error)
           setIsLoading(false)
           setCancelStream(null)
           return
@@ -129,8 +126,24 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
         onMessageSent() // Refresh conversation list in sidebar
       },
       (err) => {
+        const errorMsg = err instanceof Error ? err.message : String(err)
         console.error("Stream error:", err)
-        setStreamError(err instanceof Error ? err.message : String(err))
+        
+        // Attach error to the assistant message bubble
+        setMessages(prev => {
+          const newMsgs = [...prev]
+          const lastIdx = newMsgs.length - 1
+          const target = newMsgs[lastIdx]
+          
+          if (target && target.role === 'assistant') {
+            newMsgs[lastIdx] = {
+              ...target,
+              error: errorMsg
+            }
+          }
+          return newMsgs
+        })
+        
         setIsLoading(false)
         setCancelStream(null)
       }
@@ -209,7 +222,18 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          {messages.map(msg => (
+          {messages
+            .filter((msg, index) => {
+              if (msg.role === 'assistant' && !msg.content && !msg.error) {
+                // Keep temp messages and the actively streaming message
+                if (msg.id.startsWith('temp-') || (isLoading && index === messages.length - 1)) {
+                  return true
+                }
+                return false
+              }
+              return true
+            })
+            .map(msg => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
 
@@ -236,17 +260,6 @@ function ChatView({ activeConversationId, onMessageSent, models, activeModelId, 
       {/* Input */}
       <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06]">
         <div className="max-w-3xl mx-auto">
-          {streamError && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-start gap-2">
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <div>
-                <p className="font-medium">Error streaming response</p>
-                <p className="text-red-400/80 mt-0.5">{streamError}</p>
-              </div>
-            </div>
-          )}
           {isLoading && (
             <div className="flex justify-center mb-3">
               <button 

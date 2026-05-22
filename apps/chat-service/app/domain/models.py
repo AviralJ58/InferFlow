@@ -18,6 +18,7 @@ class Message:
     role: Literal["user", "assistant", "system"] = "user"
     content: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
