@@ -71,13 +71,16 @@ build-frontend: ## Build frontend for production
 docker-up: ## Start all services via Docker Compose
 	docker compose up -d
 
-docker-down: ## Stop all Docker Compose services
-	docker compose down
+docker-down: ## Stop all Docker Compose services and remove volumes
+	docker compose down -v
 
 docker-logs: ## Tail logs from all services
 	docker compose logs -f
 
-docker-restart: ## Restart all services
+docker-rebuild: ## Rebuild and restart all services
+	docker compose up -d --build
+
+docker-restart: ## Restart all services without rebuilding
 	docker compose down && docker compose up -d
 
 # --------------------------

@@ -1,20 +1,11 @@
 # ===========================================================================
-# InferFlow — Docker Compose
+# InferFlow — Docker Compose (Local Development)
 # ===========================================================================
-# Orchestrates all services for local development.
-#
-# Services:
-#   - frontend:           React SPA (Nginx in prod, Vite dev server locally)
-#   - chat-service:       FastAPI — conversation management + LLM inference
-#   - ingestion-worker:   Async worker — Redis Streams consumer + DB persistence
-#   - monitoring-service: FastAPI — WebSocket event fanout + metrics
-#   - redis:              Event bus (Redis Streams) + caching
-#   - postgres:           Primary data store
+# Orchestrates all services for local development with hot-reload.
 #
 # Usage:
-#   docker compose up -d          # Start all services
-#   docker compose logs -f        # Tail all logs
-#   docker compose down           # Stop all services
+#   docker compose up -d --build
+#   docker compose logs -f
 # ===========================================================================
 
 services:
@@ -24,6 +15,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: inferflow-redis
     ports:
       - "6379:6379"
     volumes:
@@ -31,8 +23,8 @@ services:
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
     networks:
       - inferflow-net
@@ -40,6 +32,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    container_name: inferflow-postgres
     ports:
       - "5433:5432"
     environment:
@@ -48,11 +41,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-inferflow}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infrastructure/init-db:/docker-entrypoint-initdb.d
+      - ./infrastructure/init-db:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inferflow}"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inferflow} -d ${POSTGRES_DB:-inferflow}"]
+      interval: 5s
+      timeout: 3s
       retries: 5
     networks:
       - inferflow-net
@@ -66,19 +59,31 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      target: dev
+    container_name: inferflow-frontend
     ports:
-      - "3000:80"
+      - "5173:5173"
+    environment:
+      - CHAT_SERVICE_HOST=chat-service
+      - MONITORING_SERVICE_HOST=monitoring-service
+    volumes:
+      - ./apps/frontend:/app:cached
+      - /app/node_modules # Prevent host node_modules from overriding container
     depends_on:
       chat-service:
         condition: service_healthy
+      monitoring-service:
+        condition: service_healthy
     networks:
       - inferflow-net
-    restart: unless-stopped
+    restart: on-failure
 
   chat-service:
     build:
       context: .
       dockerfile: apps/chat-service/Dockerfile
+    container_name: inferflow-chat-service
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "8000:8000"
     env_file:
@@ -86,6 +91,11 @@ services:
     environment:
       - REDIS_HOST=redis
       - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./apps/chat-service/app:/app/apps/chat-service/app:cached
+      - ./packages/shared/inferflow_shared:/app/packages/shared/inferflow_shared:cached
     depends_on:
       redis:
         condition: service_healthy
@@ -93,23 +103,31 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 10s
     networks:
       - inferflow-net
-    restart: unless-stopped
+    restart: on-failure
 
   ingestion-worker:
     build:
       context: .
       dockerfile: apps/ingestion-worker/Dockerfile
+    container_name: inferflow-ingestion-worker
+    # No --reload for standard python script unless we use watchgod/watchfiles. We'll just run it standard.
+    command: ["uv", "run", "python", "-m", "worker.main"]
     env_file:
       - .env
     environment:
       - REDIS_HOST=redis
       - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./apps/ingestion-worker/worker:/app/apps/ingestion-worker/worker:cached
+      - ./packages/shared/inferflow_shared:/app/packages/shared/inferflow_shared:cached
     depends_on:
       redis:
         condition: service_healthy
@@ -117,30 +135,36 @@ services:
         condition: service_healthy
     networks:
       - inferflow-net
-    restart: unless-stopped
+    restart: on-failure
 
   monitoring-service:
     build:
       context: .
       dockerfile: apps/monitoring-service/Dockerfile
+    container_name: inferflow-monitoring-service
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
     ports:
       - "8001:8001"
     env_file:
       - .env
     environment:
       - REDIS_HOST=redis
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./apps/monitoring-service/app:/app/apps/monitoring-service/app:cached
+      - ./packages/shared/inferflow_shared:/app/packages/shared/inferflow_shared:cached
     depends_on:
       redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 10s
     networks:
       - inferflow-net
-    restart: unless-stopped
+    restart: on-failure
 
 # ---------------------------------------------------------------------------
 # Volumes & Networks

@@ -418,24 +418,51 @@ inferflow/
 
 ### Local Development
 
+The fastest and most reliable way to run the entire InferFlow platform locally is using Docker Compose. The setup is configured for **local developer ergonomics**, meaning:
+- All source code is mounted as volumes, enabling hot-reloading for both the frontend (Vite) and backend (FastAPI/uvicorn).
+- Dependencies and startup order are handled automatically. You don't need to manually orchestrate the services.
+- Data for PostgreSQL and Redis are persisted in Docker volumes.
+
 ```bash
 # 1. Clone and configure
 cp .env.example .env
 
-# 2. Install dependencies
-make install
+# 2. Add your LLM API keys to .env
+# GEMINI_API_KEY="..."
 
-# 3. Start infrastructure (Redis + PostgreSQL)
+# 3. Start the entire platform (Frontend, APIs, Workers, Redis, DB)
+make docker-up --build
+
+# 4. View logs
+make docker-logs
+```
+
+Once running, access the platform at:
+- Frontend & Dashboard: http://localhost:5173
+- Chat Service API: http://localhost:8000
+- Monitoring API: http://localhost:8001
+
+To stop the platform and wipe the database/volumes:
+```bash
+make docker-down
+```
+
+### Manual Run (Without Docker)
+
+If you prefer to run services manually outside of Docker (e.g., for debugging):
+
+```bash
+# Start infrastructure
 docker compose up redis postgres -d
 
-# 4. Run services (in separate terminals)
-make run-chat        # Chat service on :8000
-make run-monitoring  # Monitoring service on :8001
-make run-frontend    # Frontend on :5173
-make run-ingestion   # Ingestion worker
+# Install dependencies
+make install
 
-# Or run everything via Docker
-make docker-up
+# Run services (in separate terminals)
+make run-chat        # Chat service
+make run-monitoring  # Monitoring service
+make run-frontend    # Frontend
+make run-ingestion   # Ingestion worker
 ```
 
 ### Available Commands
