@@ -120,7 +120,8 @@ We maintain a strict separation between user content and operational telemetry:
 
 If given more time, the following improvements would be prioritized:
 
-1. **Deploy on self-hosted Kubernetes**: Containerize the workloads into Helm charts and deploy to a self-hosted K8s cluster, utilizing Horizontal Pod Autoscalers (HPA) for the Ingestion Worker based on Redis stream lag.
-2. **Prometheus / Grafana**: Replace the custom monitoring service with industry-standard Prometheus metrics scraping and Grafana dashboards for deeper operational visibility.
-3. **Rate Limiting**: Implement Redis-backed token bucket rate limiting on the Chat Service API to protect against abuse per user or IP.
-4. **Improve Analytics**: Build aggregate materialized views or periodic cron jobs to summarize inference data for long-term cost analysis, latency tracking by provider, and identifying user usage patterns.
+1. **Improve caching for faster TTFT**: Implement Redis-backed caching for conversation history and provider responses to reduce the time to first token (TTFT).
+2. **Implement comprehensive Rate Limiting**: Implement Redis-backed token bucket rate limiting on the Chat Service API to protect against abuse per user or IP.
+3. **Deploy on self-hosted Kubernetes**: Containerize the workloads into Helm charts and deploy to a self-hosted K8s cluster, utilizing Horizontal Pod Autoscalers (HPA) for the Ingestion Worker based on Redis stream lag.
+4. **Prometheus / Grafana**: Replace the custom monitoring service with industry-standard Prometheus metrics scraping and Grafana dashboards for deeper operational visibility.
+5. **Improve Analytics**: Build aggregate materialized views or periodic cron jobs to summarize inference data for long-term cost analysis, latency tracking by provider, and identifying user usage patterns.
